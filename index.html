@@ -89,7 +89,7 @@
   <!-- RETENTION TAB -->
   <div class="section active" id="retention">
     <div class="card">
-      <h3>Retention Heatmap <span>% of active subscribers per month since signup</span></h3>
+      <h3>Retention Heatmap <span>% of active subscriptions per month since signup</span></h3>
       <div class="heatmap-container" id="heatmapContainer"></div>
     </div>
     <div class="grid-2">
@@ -116,7 +116,7 @@
   <div class="section" id="ltv">
     <div class="grid-2">
       <div class="card">
-        <h3>LTV per Subscriber <span>Cumulative revenue / cohort size</span></h3>
+        <h3>LTV per subscription <span>Cumulative revenue / cohort size</span></h3>
         <div class="chart-container"><canvas id="ltvChart"></canvas></div>
       </div>
       <div class="card">
@@ -135,7 +135,7 @@
       </div>
     </div>
     <div class="card">
-      <h3>LTV Heatmap by Month <span>Cumulative LTV per subscriber at each month</span></h3>
+      <h3>LTV Heatmap by Month <span>Cumulative LTV per subscription at each month</span></h3>
       <div class="heatmap-container" id="ltvTableContainer"></div>
     </div>
     <p class="note">* LTV calculated from actual order data (using order createdAt date) distributed across subscription months.</p>
@@ -169,7 +169,7 @@
         <div class="chart-container"><canvas id="revByProductChart"></canvas></div>
       </div>
       <div class="card">
-        <h3>Revenue per Subscriber <span>Total revenue / total subscriptions</span></h3>
+        <h3>Revenue per subscription <span>Total revenue / total subscriptions</span></h3>
         <div class="chart-container"><canvas id="revPerSubChart"></canvas></div>
       </div>
     </div>
@@ -186,7 +186,7 @@
   <!-- CHURN BY PRODUCT TAB (NEW) -->
   <div class="section" id="churnProduct">
     <div class="card">
-      <h3>Churn Curves by Product <span>% of subscribers lost over time (100% - retention%)</span></h3>
+      <h3>Churn Curves by Product <span>% of subscriptions lost over time (100% - retention%)</span></h3>
       <div class="filter-row">
         <label>Products:</label>
         <select id="churnProductSelect" multiple style="height:100px;width:300px;"></select>
@@ -446,7 +446,7 @@ const ltvRaw = `2024-10|0|255|231|24|254|255|23886.5|23886.5|93.67|93.67
 2025-02|9|448|103|10|43|43|3116.33|141455.59|315.75|72.47
 2025-02|10|448|93|10|55|59|4331.17|145786.76|325.42|73.41
 2025-02|11|448|88|5|59|59|4763.11|150549.87|336.05|80.73
-2025-02|12|448|80|8|41<41|2719.93|153269.8|342.12|66.34
+2025-02|12|448|80|8|41|41|2719.93|153269.8|342.12|66.34
 2025-02|13|448|78|2|4|5|449.02|153718.82|343.12|89.8
 2025-03|0|520|489|31|520|535|59185.21|59185.21|113.82|110.63
 2025-03|1|520|418|71|275|278|19873|79058.21|152.04|71.49
@@ -814,7 +814,7 @@ function renderKPIs() {
     { label: 'Total Revenue', value: '$ ' + (totalRevenue/1000).toFixed(0) + 'k', sub: '$ ' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits:2}) },
     { label: 'Avg M1 Retention', value: avgM1.toFixed(1) + '%', sub: avgM1 > 70 ? '<span class="green">Healthy</span>' : '<span class="yellow">Needs Attention</span>' },
     { label: 'Avg M3 Retention', value: avgM3.toFixed(1) + '%', sub: m3Retentions.length + ' cohorts with M3 data' },
-    { label: 'Avg LTV / Subscriber', value: '$ ' + avgLTV.toFixed(0), sub: 'Cumulative revenue / cohort size' },
+    { label: 'Avg LTV / Subscription', value: '$ ' + avgLTV.toFixed(0), sub: 'Cumulative revenue / cohort size' },
     { label: 'Cancellations', value: totalCancelled.toLocaleString('en-US'), sub: (totalCancelled/totalSubs*100).toFixed(1) + '% of total' }
   ];
 
@@ -976,7 +976,7 @@ function renderLTVChart() {
     data: {
       labels: latestLTV.map(r => r.cohort),
       datasets: [{
-        label: 'LTV / Subscriber ($)',
+        label: 'LTV / Subscription ($)',
         data: latestLTV.map(r => r.ltv),
         backgroundColor: latestLTV.map(r => r.ltv >= 300 ? 'rgba(34,197,94,0.7)' : r.ltv >= 200 ? 'rgba(234,179,8,0.7)' : 'rgba(26,122,122,0.85)'),
         borderRadius: 4
@@ -1247,14 +1247,14 @@ function renderRevByProduct() {
     }
   });
 
-  // Revenue per subscriber bar chart
-  const sorted = [...revenueData].filter(r => r.subs >= 10).sort((a,b) => b.rps - a.rps).slice(0, 12);
+  // Revenue per subscription bar chart
+  const sorted = [...revenueData].filter(r => r.subs >= 30).sort((a,b) => b.rps - a.rps).slice(0, 12);
   new Chart(document.getElementById('revPerSubChart').getContext('2d'), {
     type: 'bar',
     data: {
       labels: sorted.map(r => r.product.length > 20 ? r.product.substring(0,18) + '...' : r.product),
       datasets: [{
-        label: 'Revenue/Subscriber ($)',
+        label: 'Revenue/Subscription ($)',
         data: sorted.map(r => r.rps),
         backgroundColor: sorted.map(r => r.rps >= 300 ? 'rgba(34,197,94,0.7)' : r.rps >= 200 ? 'rgba(234,179,8,0.7)' : 'rgba(26,122,122,0.85)'),
         borderRadius: 4
@@ -1448,7 +1448,7 @@ function renderInsights() {
     },
     {
       title: '🏆 Best Performing Cohort',
-      text: bestM3 ? `The <b>${bestM3.cohort}</b> cohort shows the best M3 retention at <b>${bestM3.pct}%</b> (${bestM3.active} of ${bestM3.total} subscribers still active).` : 'Insufficient data.'
+      text: bestM3 ? `The <b>${bestM3.cohort}</b> cohort shows the best M3 retention at <b>${bestM3.pct}%</b> (${bestM3.active} of ${bestM3.total} subscriptions still active).` : 'Insufficient data.'
     },
     {
       title: '⚠️ Cohort Needing Attention',
@@ -1460,11 +1460,11 @@ function renderInsights() {
     },
     {
       title: '💰 Revenue Analysis',
-      text: `Total product revenue is <b>$${(totalProdRevenue/1000).toFixed(0)}k</b>. <b>${topRevProduct.product}</b> dominates with <b>${topRevShare}%</b> of total revenue ($${(topRevProduct.revenue/1000).toFixed(0)}k). The highest revenue per subscriber belongs to products with smaller cohorts but high AOV like Liposomal Quercetin ($547/sub) and Liposomal CoQ10 ($416/sub).`
+      text: `Total product revenue is <b>$${(totalProdRevenue/1000).toFixed(0)}k</b>. <b>${topRevProduct.product}</b> dominates with <b>${topRevShare}%</b> of total revenue ($${(topRevProduct.revenue/1000).toFixed(0)}k). The highest revenue per subscription belongs to products with smaller cohorts but high AOV like Liposomal Quercetin ($547/sub) and Liposomal CoQ10 ($416/sub).`
     },
     {
       title: '💡 LTV Analysis',
-      text: `Older cohorts (Oct-Dec/2024) show LTV above $300/subscriber, while recent cohorts are around $140-200. This is expected as newer cohorts haven't had time to accumulate revenue. The average order value (ARPU) ranges from $77 to $138, with more recent cohorts showing higher values.`
+      text: `Older cohorts (Oct-Dec/2024) show LTV above $300/subscription, while recent cohorts are around $140-200. This is expected as newer cohorts haven't had time to accumulate revenue. The average order value (ARPU) ranges from $77 to $138, with more recent cohorts showing higher values.`
     },
     {
       title: '📈 Growth Trend',
