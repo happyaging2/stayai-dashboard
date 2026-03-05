@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stay.AI - Retention & LTV Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f0f5f5;
+    --card: #ffffff;
+    --border: #d0dfe0;
+    --text: #1a2332;
+    --muted: #5a7a8a;
+    --accent: #1a7a7a;
+    --accent2: #2d8b8b;
+    --green: #16874a;
+    --red: #c44040;
+    --yellow: #b89020;
+    --orange: #c07040;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .header { padding: 24px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: #ffffff; }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header h1 span { color: var(--accent); }
+  .header .date { color: var(--muted); font-size: 13px; }
+  .kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; padding: 24px 32px; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .kpi .value { font-size: 26px; font-weight: 700; }
+  .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .kpi .green { color: var(--green); }
+  .kpi .red { color: var(--red); }
+  .kpi .yellow { color: var(--yellow); }
+  .tabs { display: flex; gap: 4px; padding: 0 32px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .tab { padding: 12px 20px; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); transition: all 0.2s; white-space: nowrap; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .content { padding: 24px 32px; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  .card h3 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .chart-container { position: relative; height: 350px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .heatmap-container { overflow-x: auto; }
+  table.heatmap { border-collapse: collapse; font-size: 12px; width: 100%; }
+  table.heatmap th, table.heatmap td { padding: 6px 10px; text-align: center; white-space: nowrap; }
+  table.heatmap th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--card); }
+  table.heatmap td.cohort-label { text-align: left; font-weight: 500; color: var(--text); position: sticky; left: 0; background: var(--card); }
+  table.heatmap td.size { color: var(--muted); }
+  table.product-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.product-table th { color: var(--muted); font-weight: 500; text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  table.product-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  table.product-table tr:hover { background: rgba(26,122,122,0.06); }
+  .bar { height: 6px; border-radius: 3px; background: var(--border); position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  select, input[type="range"] { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+  .filter-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-row label { font-size: 12px; color: var(--muted); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>Stay.AI</span> &mdash; Retention & LTV Dashboard</h1>
+  <div class="date">Updated on 03/05/2026 &bull; Happy Aging</div>
+</div>
+
+<div class="kpi-row" id="kpiRow"></div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="retention">Retention by Cohort</div>
+  <div class="tab" data-tab="ltv">LTV & ARPU</div>
+  <div class="tab" data-tab="product">Retention by Product</div>
+  <div class="tab" data-tab="revenueProduct">Revenue by Product</div>
+  <div class="tab" data-tab="churnProduct">Churn by Product</div>
+  <div class="tab" data-tab="insights">Insights</div>
+</div>
+
+<div class="content">
+  <!-- RETENTION TAB -->
+  <div class="section active" id="retention">
+    <div class="card">
+      <h3>Retention Heatmap <span>% of active subscribers per month since signup</span></h3>
+      <div class="heatmap-container" id="heatmapContainer"></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Retention Curves</h3>
+        <div class="filter-row">
+          <label>Cohorts:</label>
+          <select id="retentionCohortSelect" multiple style="height:80px;width:200px;"></select>
+        </div>
+        <div class="chart-container"><canvas id="retentionChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Average Retention by Month</h3>
+        <div class="chart-container"><canvas id="avgRetentionChart"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Cohort Sizes <span>New subscriptions per month</span></h3>
+      <div class="chart-container"><canvas id="cohortSizeChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- LTV TAB -->
+  <div class="section" id="ltv">
+    <div class="grid-2">
+      <div class="card">
+        <h3>LTV per Subscriber <span>Cumulative revenue / cohort size</span></h3>
+        <div class="chart-container"><canvas id="ltvChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Monthly ARPU <span>Revenue / number of orders (avg ticket)</span></h3>
+        <div class="chart-container"><canvas id="arpuChart"></canvas></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Total Revenue by Cohort</h3>
+        <div class="chart-container"><canvas id="revenueChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Cancellations by Cohort</h3>
+        <div class="chart-container"><canvas id="churnChart"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>LTV Heatmap by Month <span>Cumulative LTV per subscriber at each month</span></h3>
+      <div class="heatmap-container" id="ltvTableContainer"></div>
+    </div>
+    <p class="note">* LTV calculated from actual order data (using order createdAt date) distributed across subscription months.</p>
+  </div>
+
+  <!-- PRODUCT RETENTION TAB -->
+  <div class="section" id="product">
+    <div class="card">
+      <h3>Retention by Product <span>Top 15 products by cohort size</span></h3>
+      <div class="filter-row">
+        <label>Reference month:</label>
+        <select id="productMonthSelect"></select>
+      </div>
+      <div id="productTableContainer"></div>
+    </div>
+    <div class="card">
+      <h3>Product Retention Curves</h3>
+      <div class="filter-row">
+        <label>Products:</label>
+        <select id="productSelect" multiple style="height:100px;width:300px;"></select>
+      </div>
+      <div class="chart-container"><canvas id="productRetentionChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- REVENUE BY PRODUCT TAB (NEW) -->
+  <div class="section" id="revenueProduct">
+    <div class="grid-2">
+      <div class="card">
+        <h3>Revenue by Product <span>Total revenue in USD</span></h3>
+        <div class="chart-container"><canvas id="revByProductChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Revenue per Subscriber <span>Total revenue / total subscriptions</span></h3>
+        <div class="chart-container"><canvas id="revPerSubChart"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Product Revenue Table</h3>
+      <div class="heatmap-container" id="revenueTableContainer"></div>
+    </div>
+    <div class="card">
+      <h3>Revenue Share <span>% contribution to total revenue</span></h3>
+      <div class="chart-container" style="height:400px;"><canvas id="revenueShareChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CHURN BY PRODUCT TAB (NEW) -->
+  <div class="section" id="churnProduct">
+    <div class="card">
+      <h3>Churn Curves by Product <span>% of subscribers lost over time (100% - retention%)</span></h3>
+      <div class="filter-row">
+        <label>Products:</label>
+        <select id="churnProductSelect" multiple style="height:100px;width:300px;"></select>
+      </div>
+      <div class="chart-container" style="height:400px;"><canvas id="churnByProductChart"></canvas></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>M3 Churn Rate by Product <span>% churned by month 3</span></h3>
+        <div class="chart-container"><canvas id="churnM3Chart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Churn Speed Index <span>Average monthly churn rate (first 6 months)</span></h3>
+        <div class="chart-container"><canvas id="churnSpeedChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INSIGHTS TAB -->
+  <div class="section" id="insights">
+    <div class="card" id="insightsCard">
+      <h3>Automated Analysis</h3>
+      <div id="insightsContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ DATA ============
+const retentionRaw = `2024-10|0|255|231|90.6
+2024-10|1|255|206|80.8
+2024-10|2|255|180|70.6
+2024-10|3|255|160|62.7
+2024-10|4|255|136|53.3
+2024-10|5|255|120|47.1
+2024-10|6|255|112|43.9
+2024-10|7|255|100|39.2
+2024-10|8|255|84|32.9
+2024-10|9|255|80|31.4
+2024-10|10|255|75|29.4
+2024-10|11|255|60|23.5
+2024-10|12|255|56|22.0
+2024-10|13|255|52|20.4
+2024-10|14|255|45|17.6
+2024-10|15|255|34|13.3
+2024-10|16|255|34|13.3
+2024-11|0|621|600|96.6
+2024-11|1|621|533|85.8
+2024-11|2|621|453|72.9
+2024-11|3|621|414|66.7
+2024-11|4|621|345|55.6
+2024-11|5|621|308|49.6
+2024-11|6|621|283|45.6
+2024-11|7|621|227|36.6
+2024-11|8|621|200|32.2
+2024-11|9|621|181|29.1
+2024-11|10|621|164|26.4
+2024-11|11|621|137|22.1
+2024-11|12|621|122|19.6
+2024-11|13|621|108|17.4
+2024-11|14|621|83|13.4
+2024-11|15|621|73|11.8
+2024-12|0|674|647|96.0
+2024-12|1|674|584|86.6
+2024-12|2|674|511|75.8
+2024-12|3|674|438|65.0
+2024-12|4|674|365|54.2
+2024-12|5|674|321|47.6
+2024-12|6|674|280|41.5
+2024-12|7|674|230|34.1
+2024-12|8|674|196|29.1
+2024-12|9|674|172|25.5
+2024-12|10|674|155|23.0
+2024-12|11|674|119|17.7
+2024-12|12|674|98|14.5
+2024-12|13|674|87|12.9
+2024-12|14|674|87|12.9
+2025-01|0|672|638|94.9
+2025-01|1|672|550|81.8
+2025-01|2|672|462|68.8
+2025-01|3|672|404|60.1
+2025-01|4|672|323|48.1
+2025-01|5|672|276|41.1
+2025-01|6|672|240|35.7
+2025-01|7|672|196|29.2
+2025-01|8|672|168|25.0
+2025-01|9|672|145|21.6
+2025-01|10|672|128|19.0
+2025-01|11|672|119|17.7
+2025-01|12|672|119|17.7
+2025-01|13|672|119|17.7
+2025-02|0|448|425|94.9
+2025-02|1|448|367|81.9
+2025-02|2|448|291|65.0
+2025-02|3|448|247|55.1
+2025-02|4|448|206|46.0
+2025-02|5|448|168|37.5
+2025-02|6|448|141|31.5
+2025-02|7|448|118|26.3
+2025-02|8|448|99|22.1
+2025-02|9|448|84|19.6
+2025-02|10|448|82|18.3
+2025-02|11|448|78|17.4
+2025-02|12|448|78|17.4
+2025-03|0|520|499|96.0
+2025-03|1|520|411|79.0
+2025-03|2|520|343|66.0
+2025-03|3|520|268|51.5
+2025-03|4|520|228|43.8
+2025-03|5|520|184|35.4
+2025-03|6|520|149|28.7
+2025-03|7|520|124|23.8
+2025-03|8|520|103|19.8
+2025-03|9|520|96|18.5
+2025-03|10|520|86|16.5
+2025-04|0|574|543|94.6
+2025-04|1|574|463|80.7
+2025-04|2|574|388|67.6
+2025-04|3|574|317|55.2
+2025-04|4|574|251|43.7
+2025-04|5|574|216|37.6
+2025-04|6|574|175|30.5
+2025-04|7|574|136|23.7
+2025-04|8|574|114|19.9
+2025-04|9|574|104|18.1
+2025-04|10|574|94|16.4
+2025-05|0|722|683|94.6
+2025-05|1|722|543|75.2
+2025-05|2|722|420|58.2
+2025-05|3|722|331|45.8
+2025-05|4|722|265|36.7
+2025-05|5|722|228|31.6
+2025-05|6|722|186|25.8
+2025-05|7|722|160|22.2
+2025-05|8|722|146|20.2
+2025-05|9|722|127|17.6
+2025-06|0|732|660|90.2
+2025-06|1|732|482|65.8
+2025-06|2|732|360|49.2
+2025-06|3|732|269|36.7
+2025-06|4|732|217|29.6
+2025-06|5|732|198|27.0
+2025-06|6|732|158|21.6
+2025-06|7|732|131|17.9
+2025-06|8|732|113|15.4
+2025-07|0|817|736|90.1
+2025-07|1|817|564|69.0
+2025-07|2|817|407|49.8
+2025-07|3|817|309|37.8
+2025-07|4|817|252|30.8
+2025-07|5|817|203|24.8
+2025-07|6|817|162|19.8
+2025-07|7|817|136|16.6
+2025-08|0|813|702|86.3
+2025-08|1|813|488|60.0
+2025-08|2|813|363|44.6
+2025-08|3|813|298|36.7
+2025-08|4|813|241|29.6
+2025-08|5|813|200|24.6
+2025-08|6|813|155|19.1
+2025-09|0|660|543|82.3
+2025-09|1|660|400|60.6
+2025-09|2|660|305|46.2
+2025-09|3|660|248|37.6
+2025-09|4|660|200|30.3
+2025-09|5|660|188|28.5
+2025-10|0|619|540|87.2
+2025-10|1|619|380|61.4
+2025-10|2|619|278|44.9
+2025-10|3|619|229|37.0
+2025-10|4|619|213|34.4
+2025-11|0|1039|932|89.7
+2025-11|1|1039|701|67.5
+2025-11|2|1039|517|49.8
+2025-11|3|1039|459|44.2
+2025-12|0|836|752|89.9
+2025-12|1|836|591|70.7
+2025-12|2|836|533|63.8
+2026-01|0|757|714|94.3
+2026-01|1|757|610|80.6
+2026-02|0|1168|1120|95.9`;
+
+const ltvRaw = `2024-10|0|255|231|24|254|255|23886.5|23886.5|93.67|93.67
+2024-10|1|255|206|25|77|77|4343.4|28229.9|110.71|56.41
+2024-10|2|255|180|26|76|76|4255|32484.9|127.39|55.99
+2024-10|3|255|160|20|76|77|6423|38907.9|152.58|83.42
+2024-10|4|255|136|24|92|92|8613|47520.9|186.36|93.62
+2024-10|5|255|120|16|44|44|2496|50016.9|196.14|56.73
+2024-10|6|255|112|8|39|39|2545.8|52562.7|206.13|65.28
+2024-10|7|255|100|12|81|81|10102.8|62665.5|245.75|124.73
+2024-10|8|255|84|16|24|24|1792.8|64458.3|252.78|74.7
+2024-10|9|255|80|4|23|23|1419.13|65877.43|258.34|61.7
+2024-10|10|255|75|5|33|33|3349.95|69227.38|271.48|101.51
+2024-10|11|255|60|15|33|33|3253.8|72481.18|284.24|98.6
+2024-10|12|255|56|4|16|16|1318.33|73799.51|289.41|82.4
+2024-10|13|255|52|4|17|17|1174.15|74973.66|294.01|69.07
+2024-10|14|255|45|7|32|32|4301.83|79275.49|310.88|134.43
+2024-10|15|255|34|11|17|17|1298.63|80574.12|315.98|76.39
+2024-10|16|255|34|0|10|10|541|81115.12|318.1|54.1
+2024-10|17|255|34|0|2|4|216|81331.12|318.95|54
+2024-11|0|621|600|21|621|624|54073.01|54073.01|87.07|86.66
+2024-11|1|621|533|67|251|251|14155.36|68228.37|109.87|56.4
+2024-11|2|621|453|80|234|234|13520|81748.37|131.64|57.78
+2024-11|3|621|414|39|212|213|16506|98254.37|158.22|77.49
+2024-11|4|621|345|69|228|230|18577.65|116832.02|188.14|80.77
+2024-11|5|621|308|37|124|125|7521.6|124353.62|200.25|60.17
+2024-11|6|621|283|25|107|107|7266.6|131620.22|211.95|67.91
+2024-11|7|621|227|56|192|193|22305.6|153925.82|247.87|115.57
+2024-11|8|621|200|27|82|82|5145.92|159071.74|256.15|62.76
+2024-11|9|621|181|19|74|74|4907.39|163979.13|264.06|66.32
+2024-11|10|621|164|17|88|89|7074.69|171053.82|275.45|79.49
+2024-11|11|621|137|27|73|75|6864.75|177918.57|286.5|91.53
+2024-11|12|621|122|15|52|52|3128.99|181047.56|291.54|60.17
+2024-11|13|621|108|14|61|61|5475.99|186523.55|300.36|89.77
+2024-11|14|621|83|25|51|51|4697.4|191220.95|307.92|92.11
+2024-11|15|621|73|10|29|29|1784.39|193005.34|310.8|61.53
+2024-12|0|674|647|27|674|681|64041.68|64041.68|95.08|94.1
+2024-12|1|674|584|63|272|275|15323.04|79404.72|117.81|55.72
+2024-12|2|674|511|73|187|189|10875|90279.72|133.95|57.54
+2024-12|3|674|438|73|248|252|20307.5|110587.22|164.08|80.59
+2024-12|4|674|365|73|222|223|19059.8|129647.02|192.35|85.47
+2024-12|5|674|321|44|133|136|8235.2|137882.22|204.57|60.55
+2024-12|6|674|280|41|124|124|8288.6|146170.82|216.87|66.84
+2024-12|7|674|230|50|194|195|22409.75|168580.57|250.12|114.92
+2024-12|8|674|196|34|87|88|5519|174099.57|258.31|62.72
+2024-12|9|674|172|24|68|69|4486.39|178585.96|264.96|65.02
+2024-12|10|674|151|21|89|89|8136.07|186722.03|277.04|91.42
+2024-12|11|674|136|15|62|63|4938.79|191660.82|284.36|78.39
+2024-12|12|674|122|14|51|51|3542.85|195203.67|289.62|69.47
+2024-12|13|674|109|13|57|58|4340.65|199544.32|296.06|74.84
+2024-12|14|674|90|19|61|63|7299.78|206844.1|306.89|115.87
+2024-12|15|674|87|3|5|7|356.24|207200.34|307.42|50.89
+2025-01|0|672|645|27|672|681|68219.37|68219.37|101.52|100.18
+2025-01|1|672|578|67|254|255|14961.9|83181.27|123.78|58.67
+2025-01|2|672|516|62|213|215|12777|95958.27|142.8|59.43
+2025-01|3|672|463|53|253|260|23361.9|119320.17|177.56|89.85
+2025-01|4|672|376|87|209|209|17451|136771.17|203.53|83.5
+2025-01|5|672|327|49|108|108|6320.4|143091.57|212.93|58.52
+2025-01|6|672|303|24|98|98|5738.42|148829.99|221.47|58.56
+2025-01|7|672|242|61|227|227|26540.6|175370.59|260.97|116.92
+2025-01|8|672|202|40|80|80|5118.13|180488.72|268.58|63.98
+2025-01|9|672|179|23|75|75|4835.23|185323.95|275.78|64.47
+2025-01|10|672|159|20|93|93|8252.69|193576.64|288.06|88.74
+2025-01|11|672|141|18|71|71|4934.24|198510.88|295.4|69.5
+2025-01|12|672|129|12|51|53|3376.54|201887.42|300.43|63.71
+2025-01|13|672|120|9|49|50|4252.9|206140.32|306.76|85.06
+2025-01|14|672|118|2|14|19|1802.11|207942.43|309.44|94.85
+2025-02|0|448|418|30|448|453|49673.11|49673.11|110.88|109.65
+2025-02|1|448|347|71|218|224|18520|68193.11|152.22|82.68
+2025-02|2|448|300|47|166|178|14789.2|82982.31|185.23|83.09
+2025-02|3|448|252|48|157|165|12861.75|95844.06|213.94|77.95
+2025-02|4|448|209|43|152|153|13267.95|109112.01|243.55|86.72
+2025-02|5|448|179|30|99|104|7809.43|116921.44|260.99|75.09
+2025-02|6|448|157|22|91|96|7338.05|124259.49|277.36|76.44
+2025-02|7|448|129|28|98|99|10191.82|134451.31|300.11|102.95
+2025-02|8|448|113|16|59|60|3887.95|138339.26|308.79|64.8
+2025-02|9|448|103|10|43|43|3116.33|141455.59|315.75|72.47
+2025-02|10|448|93|10|55|59|4331.17|145786.76|325.42|73.41
+2025-02|11|448|88|5|59|59|4763.11|150549.87|336.05|80.73
+2025-02|12|448|80|8|41<41|2719.93|153269.8|342.12|66.34
+2025-02|13|448|78|2|4|5|449.02|153718.82|343.12|89.8
+2025-03|0|520|489|31|520|535|59185.21|59185.21|113.82|110.63
+2025-03|1|520|418|71|275|278|19873|79058.21|152.04|71.49
+2025-03|2|520|363|55|201|210|15175.9|94234.11|181.22|72.27
+2025-03|3|520|313|50|196|198|17732.6|111966.71|215.32|89.56
+2025-03|4|520|250|63|156|161|14130.51|126097.22|242.49|87.77
+2025-03|5|520|210|40|104|108|8070.63|134167.85|258.02|74.73
+2025-03|6|520|181|29|88|89|6869.34|141037.19|271.23|77.18
+2025-03|7|520|140|41|116|121|13477.97|154515.16|297.14|111.39
+2025-03|8|520|119|21|57|60|4617.9|159133.06|306.03|76.97
+2025-03|9|520|110|9|48|50|3677.4|162810.46|313.1|73.55
+2025-03|10|520|100|10|63|64|5845.88|168656.34|324.34|91.34
+2025-03|11|520|86|14|42|44|3433.74|172090.08|330.94|78.04
+2025-03|12|520|82|4|3|3|165.51|172255.59|331.26|55.17
+2025-04|0|574|543|31|574|611|58324.01|58324.01|101.61|95.46
+2025-04|1|574|463|80|320|334|20486|78810.01|137.3|61.34
+2025-04|2|574|388|75|232|242|14223.95|93033.96|162.08|58.78
+2025-04|3|574|317|71|234|250|19946.12|112980.08|196.83|79.78
+2025-04|4|574|251|66|130|137|8270.88|121250.96|211.24|60.37
+2025-04|5|574|216|35|100|109|6698.78|127949.74|222.91|61.46
+2025-04|6|574|175|41|121|123|10713.65|138663.39|241.57|87.1
+2025-04|7|574|136|39|97|97|8695.39|147358.78|256.72|89.64
+2025-04|8|574|114|22|63|67|3933.21|151291.99|263.57|58.7
+2025-04|9|574|104|10|63|65|4865.77|156157.76|272.05|74.86
+2025-04|10|574|94|10|54|54|4338.76|160496.52|279.61|80.35
+2025-04|11|574|91|3|9|11|747.75|161244.27|280.91|67.98
+2025-05|0|722|683|39|722|755|79382.29|79382.29|109.95|105.14
+2025-05|1|722|543|140|389|428|28583.06|107965.35|149.54|66.78
+2025-05|2|722|420|123|268|302|19993.64|127958.99|177.23|66.2
+2025-05|3|722|331|89|277|299|26129.73|154088.72|213.42|87.39
+2025-05|4|722|265|66|147|164|10648.5|164737.22|228.17|64.93
+2025-05|5|722|228|37|116|128|8655.7|173392.92|240.16|67.62
+2025-05|6|722|186|42|149|159|15996.38|189389.3|262.31|100.61
+2025-05|7|722|160|26|78|88|5518.49|194907.79|269.96|62.71
+2025-05|8|722|146|14|79|93|6659.47|201567.26|279.18|71.61
+2025-05|9|722|127|19|70|75|6257.44|207824.7|287.85|83.43
+2025-05|10|722|123|4|7|7|385.68|208210.38|288.38|55.1
+2025-06|0|732|660|72|732|808|84519.56|84519.56|115.46|104.6
+2025-06|1|732|482|178|370|424|26905.88|111425.44|152.22|63.46
+2025-06|2|732|360|122|241|276|18604.24|130029.68|177.64|67.41
+2025-06|3|732|269|91|213|225|18809.25|148838.93|203.33|83.6
+2025-06|4|732|217|52|120|133|8697.55|157536.48|215.21|65.4
+2025-06|5|732|198|19|85|94|6876.72|164413.2|224.61|73.16
+2025-06|6|732|158|40|114|128|12444.63|176857.83|241.61|97.22
+2025-06|7|732|131|27|67|72|5280.81|182138.64|248.82|73.34
+2025-06|8|732|113|18|50|51|3379.51|185518.15|253.44|66.26
+2025-06|9|732|112|1|5|5|379.53|185897.68|253.96|75.91
+2025-07|0|817|736|81|817|845|88665.64|88665.64|108.53|100.19
+2025-07|1|817|564|172|439|480|32066.92|120732.56|147.78|66.81
+2025-07|2|817|407|157|297|314|21468.73|142201.29|174.05|68.37
+2025-07|3|817|309|98|252|269|21353.83|163555.12|200.19|79.38
+2025-07|4|817|252|57|148|158|10532.7|174087.82|213.08|66.66
+2025-07|5|817|203|49|129|138|10017.93|184105.75|225.34|72.59
+2025-07|6|817|162|41|130|136|11708.47|195814.22|239.67|86.09
+2025-07|7|817|136|26|78|79|5350.05|201164.27|246.22|67.72
+2025-07|8|817|133|3|7|9|491.08|201655.35|246.82|54.56
+2025-08|0|813|702|111|813|844|87137.49|87137.49|107.18|103.24
+2025-08|1|813|488|214|391|397|26618.29|113755.78|139.92|67.05
+2025-08|2|813|363|125|270|278|19435.79|133191.57|163.83|69.91
+2025-08|3|813|298|65|230|236|19172.28|152363.85|187.41|81.24
+2025-08|4|813|241|57|143|147|9878.75|162242.6|199.56|67.2
+2025-08|5|813|196|45|118|121|8209.64|170452.24|209.66|67.85
+2025-08|6|813|162|34|121|122|10566.47|181018.71|222.66|86.61
+2025-08|7|813|154|8|4|4|205.85|181224.56|222.91|51.46
+2025-09|0|660|586|74|660|669|77915.19|77915.19|118.05|116.47
+2025-09|1|660|446|140|314|324|20968.12|98883.31|149.82|64.72
+2025-09|2|660|360|86|193|200|13609.88|112493.19|170.44|68.05
+2025-09|3|660|268|92|194|198|15842.13|128335.32|194.45|80.01
+2025-09|4|660|219|49|128|134|8749.02|137084.34|207.7|65.29
+2025-09|5|660|195|24|91|93|6329.58|143413.92|217.29|68.06
+2025-09|6|660|187|8|8|10|542.35|143956.27|218.12|54.24
+2025-10|0|619|552|67|619|634|69369.42|69369.42|112.07|109.42
+2025-10|1|619|451|101|266|268|17636.81|87006.23|140.56|65.81
+2025-10|2|619|339|112|209|218|14365.12|101371.35|163.77|65.9
+2025-10|3|619|259|80|195|205|17193.92|118565.27|191.54|83.87
+2025-10|4|619|219|40|119|122|7645.33|126210.6|203.89|62.67
+2025-10|5|619|212|7|10|10|598.91|126809.51|204.86|59.89
+2025-11|0|1039|944|95|1039|1051|119139.1|119139.1|114.67|113.36
+2025-11|1|1039|747|197|485|493|36608.39|155747.49|149.9|74.26
+2025-11|2|1039|602|145|370|378|29589.86|185337.35|178.38|78.28
+2025-11|3|1039|471|131|351|362|33984.29|219321.64|211.09|93.88
+2025-11|4|1039|457|14|44|47|3426.07|222747.71|214.39|72.9
+2025-12|0|836|772|64|836|886|115978.89|115978.89|138.73|130.9
+2025-12|1|836|637|135|287|316|24255.08|140233.97|167.74|76.76
+2025-12|2|836|550|87|226|240|20161.49|160395.46|191.86|84.01
+2025-12|3|836|528|22|42|48|5459.52|165854.98|198.39|113.74
+2026-01|0|757|714|43|757|780|108061.52|108061.52|142.75|138.54
+2026-01|1|757|610|104|262|267|17589.1|125650.62|165.98|65.88
+2026-01|2|757|593|17|17|20|1034.31|126684.93|167.35|51.72
+2026-02|0|1168|1120|48|1166|1197|159617.97|159617.97|136.66|133.35
+2026-02|1|1168|1094|26|34|41|2411.69|162029.66|138.72|58.82
+2026-03|0|170|169|1|170|170|23314.71|23314.71|137.15|137.15`;
+
+const productRaw = `Calm Shots|0|218|181|83
+Calm Shots|1|217|112|51.6
+Calm Shots|2|205|80|39
+Calm Shots|3|195|49|25.1
+Calm Shots|4|190|38|20
+Calm Shots|5|168|30|17.9
+Calm Shots|6|159|16|10.1
+Calm Shots|7|159|11|6.9
+Calm Shots|8|153|9|5.9
+Calm Shots|9|133|6|4.5
+Calm Shots|10|114|4|3.5
+Calm Shots|11|91|3|3.3
+Calm Shots|12|76|1|1.3
+Calm Shots|13|48|0|0
+Glow Shots|0|1045|934|89.4
+Glow Shots|1|1042|680|65.3
+Glow Shots|2|986|501|50.8
+Glow Shots|3|931|365|39.2
+Glow Shots|4|858|278|32.4
+Glow Shots|5|800|222|27.8
+Glow Shots|6|757|169|22.3
+Glow Shots|7|707|136|19.2
+Glow Shots|8|622|111|17.8
+Glow Shots|9|515|91|17.7
+Glow Shots|10|438|71|16.2
+Glow Shots|11|326|50|15.3
+Glow Shots|12|257|38|14.8
+Glow Shots|13|143|25|17.5
+Glow Shots|14|12|7|58.3
+Happiest Gut|0|171|149|87.1
+Happiest Gut|1|169|111|65.7
+Happiest Gut|2|153|68|44.4
+Happiest Gut|3|143|46|32.2
+Happiest Gut|4|110|25|22.7
+Happiest Gut|5|83|17|20.5
+Happiest Gut|6|63|11|17.5
+Hydro Burn|0|644|582|90.4
+Hydro Burn|1|642|443|69
+Hydro Burn|2|623|303|48.6
+Hydro Burn|3|595|224|37.6
+Hydro Burn|4|570|160|28.1
+Hydro Burn|5|536|118|22
+Hydro Burn|6|507|92|18.1
+Hydro Burn|7|484|74|15.3
+Hydro Burn|8|445|54|12.1
+Hydro Burn|9|376|45|12
+Hydro Burn|10|261|32|12.3
+Hydro Burn|11|128|14|10.9
+Lean Muscle Formula|0|578|490|84.8
+Lean Muscle Formula|1|574|310|54
+Lean Muscle Formula|2|551|184|33.4
+Lean Muscle Formula|3|533|126|23.6
+Lean Muscle Formula|4|510|91|17.8
+Lean Muscle Formula|5|480|69|14.4
+Lean Muscle Formula|6|432|44|10.2
+Lean Muscle Formula|7|373|28|7.5
+Lean Muscle Formula|8|304|18|5.9
+Lean Muscle Formula|9|219|7|3.2
+Lean Muscle Formula|10|55|1|1.8
+Liposomal CoQ10|0|66|58|87.9
+Liposomal CoQ10|1|66|35|53
+Liposomal CoQ10|2|63|22|34.9
+Liposomal CoQ10|3|58|15|25.9
+Liposomal CoQ10|4|53|15|28.3
+Liposomal CoQ10|5|46|9|19.6
+Liposomal CoQ10|6|42|7|16.7
+Liposomal CoQ10|7|31|6|19.4
+Liposomal Curcumin|0|80|64|80
+Liposomal Curcumin|1|80|46|57.5
+Liposomal Curcumin|2|73|27|37
+Liposomal Curcumin|3|63|18|28.6
+Liposomal Curcumin|4|60|15|25
+Liposomal Curcumin|5|47|10|21.3
+Liposomal Curcumin|6|43|9|20.9
+Liposomal Curcumin|7|29|8|27.6
+Liposomal Glutathione|0|372|333|89.5
+Liposomal Glutathione|1|366|259|70.8
+Liposomal Glutathione|2|317|163|51.4
+Liposomal Glutathione|3|266|103|38.7
+Liposomal Glutathione|4|224|64|28.6
+Liposomal Glutathione|5|176|36|20.5
+Liposomal Glutathione|6|127|22|17.3
+Liposomal Glutathione|7|78|13|16.7
+Liposomal Magnesium|0|43|37|86
+Liposomal Magnesium|1|43|24|55.8
+Liposomal Magnesium|2|42|16|38.1
+Liposomal Magnesium|3|39|9|23.1
+Liposomal Magnesium|4|37|8|21.6
+Liposomal Magnesium|5|32|5|15.6
+Liposomal Magnesium|6|31|5|16.1
+Liposomal Magnesium|7|28|4|14.3
+Liposomal Magnesium|8|15|1|6.7
+Liposomal Quercetin|0|40|33|82.5
+Liposomal Quercetin|1|40|26|65
+Liposomal Quercetin|2|39|18|46.2
+Liposomal Quercetin|3|36|14|38.9
+Liposomal Quercetin|4|32|10|31.3
+Liposomal Quercetin|5|31|9|29
+Liposomal Quercetin|6|29|8|27.6
+Liposomal Quercetin|7|21|6|28.6
+Liposomal Quercetin|8|14|3|21.4
+Liposomal Vitamin C|0|27|21|77.8
+Liposomal Vitamin C|1|27|13|48.1
+Liposomal Vitamin C|2|27|7|25.9
+Liposomal Vitamin C|3|27|5|18.5
+Liposomal Vitamin C|4|27|4|14.8
+Liposomal Vitamin C|5|27|3|11.1
+Liposomal Vitamin C|6|27|1|3.7
+Liposomal Vitamin C|7|21|0|0
+Liposomal Vitamin C|8|11|0|0
+Liposomal Sleep Blend|0|59|50|84.7
+Liposomal Sleep Blend|1|59|36|61
+Liposomal Sleep Blend|2|53|24|45.3
+Liposomal Sleep Blend|3|41|14|34.1
+Liposomal Sleep Blend|4|38|8|21.1
+Liposomal Sleep Blend|5|37|7|18.9
+Liposomal Sleep Blend|6|31|3|9.7
+Liposomal Sleep Blend|7|23|2|8.7
+Longevity Neuro Creamer|0|21|18|85.7
+Longevity Neuro Creamer|1|11|7|63.6
+Longevity Shots|0|7206|6818|94.6
+Longevity Shots|1|7169|5863|81.8
+Longevity Shots|2|6866|4755|69.3
+Longevity Shots|3|6592|3809|57.8
+Longevity Shots|4|6231|2971|47.7
+Longevity Shots|5|5771|2410|41.8
+Longevity Shots|6|5384|1980|36.8
+Longevity Shots|7|5015|1516|30.2
+Longevity Shots|8|4527|1225|27.1
+Longevity Shots|9|4069|1022|25.1
+Longevity Shots|10|3733|856|22.9
+Longevity Shots|11|3282|673|20.5
+Longevity Shots|12|2891|549|19
+Longevity Shots|13|2496|440|17.6
+Longevity Shots|14|2205|327|14.8
+Longevity Shots|15|1540|188|12.2
+Longevity Shots|16|869|102|11.7
+Longevity Shots|17|254|33|13
+NAD+ Advanced longevity formula|0|1669|1585|95
+NAD+ Advanced longevity formula|1|1558|1328|85.2
+NAD+ Advanced longevity formula|2|876|603|68.8
+NAD+ Advanced longevity formula|3|604|348|57.6
+NAD+ Advanced longevity formula|4|341|168|49.3
+NAD+ Advanced longevity formula|5|13|10|76.9
+NAD+ Advanced longevity formula|6|10|6|60
+NAD+ Booster Ritual|0|11|9|81.8
+NAD+ Booster Ritual|1|11|8|72.7
+NAD+ Booster Ritual|2|11|5|45.5
+NAD+ Booster Ritual|3|11|3|27.3
+NAD+ Booster Ritual|4|10|0|0
+NAD+ Essential Longevity Formula|0|21|21|100
+NAD+ Essential Longevity Formula|1|21|20|95.2
+NAD+ Essential Longevity Formula|2|10|8|80
+NAD+ Longevity Glow Duo|0|55|50|90.9
+NAD+ Longevity Glow Duo|1|55|27|49.1
+NAD+ Longevity Glow Duo|2|50|15|30
+NAD+ Longevity Glow Duo|3|43|8|18.6
+NAD+ Longevity Glow Duo|4|29|2|6.9
+NAD+ Longevity Glow Duo|5|18|1|5.6
+NMN cell renew tonic|0|391|328|83.9
+NMN cell renew tonic|1|390|235|60.3
+NMN cell renew tonic|2|380|162|42.6
+NMN cell renew tonic|3|346|107|30.9
+NMN cell renew tonic|4|325|79|24.3
+NMN cell renew tonic|5|288|58|20.1
+NMN cell renew tonic|6|266|46|17.3
+NMN cell renew tonic|7|207|33|15.9
+NMN cell renew tonic|8|152|25|16.4
+NMN cell renew tonic|9|59|12|20.3`;
+
+// NEW: Revenue by Product data from BigQuery
+const revenueRaw = `Longevity Shots|7206|21489|1827423.98|85.04|253.6
+Glow Shots|1045|3679|406820.28|110.58|389.3
+NAD+ Advanced longevity formula|1669|2644|302499.98|114.41|181.25
+Hydro Burn|644|1898|124805.44|65.76|193.8
+NMN cell renew tonic|391|883|107865.13|122.16|275.87
+Lean Muscle Formula|578|1391|101353.42|72.86|175.35
+Calm Shots|218|628|84245.99|134.15|386.45
+Liposomal Glutathione|372|744|82082.02|110.33|220.65
+Happiest Gut|178|349|29633.12|84.91|166.48
+Liposomal CoQ10|66|129|27461.29|212.88|416.08
+Liposomal Curcumin|80|157|22864.88|145.64|285.81
+Liposomal Quercetin|40|91|21894.24|240.6|547.36
+Liposomal Sleep Blend|59|115|13259.21|115.3|224.73
+Liposomal Magnesium|43|105|13077.29|124.55|304.12
+NAD+ Longevity Glow Duo|55|101|12431.15|123.08|226.02
+Liposomal Vitamin C|27|51|5519.84|108.23|204.44
+NAD+ Essential Longevity Formula|21|41|3509.84|85.61|167.14
+NAD+ Booster Ritual|11|22|3326.03|151.18|302.37
+Renewal Ritual|8|16|3217.79|201.11|402.22
+Full Routine Kit|2|10|3002.92|300.29|1501.46
+Longevity Neuro Creamer|21|21|2377.3|113.2|113.2
+Gut Harmony Duo|4|8|1494.45|186.81|373.61
+Timeless Energy Ritual|4|6|1451.97|242|362.99
+Complete Longevity Ritual|1|2|931.13|465.57|931.13
+Longevity's Essential Duo|2|2|299.1|149.55|149.55
+Longevity Starter|1|1|189.98|189.98|189.98
+Kit Calm & Glow|1|1|1|1|1`;
+
+// ============ PARSE DATA ============
+function parseRetention(raw) {
+  return raw.trim().split('\n').map(line => {
+    const [cohort, offset, total, active, pct] = line.split('|');
+    return { cohort, offset: +offset, total: +total, active: +active, pct: +pct };
+  });
+}
+function parseLTV(raw) {
+  return raw.trim().split('\n').map(line => {
+    const [cohort, offset, size, activeSubs, cancelled, subsOrders, orderCount, revenue, cumRevenue, ltv, arpu] = line.split('|');
+    return { cohort, offset: +offset, size: +size, activeSubs: +activeSubs, cancelled: +cancelled, subsOrders: +subsOrders, orderCount: +orderCount, revenue: +revenue, cumRevenue: +cumRevenue, ltv: +ltv, arpu: +arpu };
+  });
+}
+function parseProduct(raw) {
+  return raw.trim().split('\n').map(line => {
+    const [product, offset, total, active, pct] = line.split('|');
+    return { product, offset: +offset, total: +total, active: +active, pct: +pct };
+  });
+}
+function parseRevenue(raw) {
+  return raw.trim().split('\n').map(line => {
+    const [product, subs, orders, revenue, aov, rps] = line.split('|');
+    return { product, subs: +subs, orders: +orders, revenue: +revenue, aov: +aov, rps: +rps };
+  });
+}
+
+const retentionData = parseRetention(retentionRaw);
+const ltvData = parseLTV(ltvRaw);
+const productData = parseProduct(productRaw);
+const revenueData = parseRevenue(revenueRaw);
+
+// Helper: get last (most recent) row per cohort from ltvData
+function getLatestLTVPerCohort() {
+  const map = {};
+  ltvData.forEach(r => {
+    if (!map[r.cohort] || r.offset > map[r.cohort].offset) {
+      map[r.cohort] = r;
+    }
+  });
+  return Object.values(map).sort((a, b) => a.cohort.localeCompare(b.cohort));
+}
+
+const cohorts = [...new Set(retentionData.map(r => r.cohort))];
+const products = [...new Set(productData.map(r => r.product))].sort();
+
+// ============ COLORS ============
+const palette = ['#1a7a7a','#2d8b8b','#c44040','#b89020','#16874a','#5a4a9a','#c07040','#4a6fa5','#8b5060','#3a8a5a','#7a6030','#506090','#a05050','#2a6a4a','#8a7040','#4a7a8a','#6a3a6a','#3a6a7a'];
+function getColor(i) { return palette[i % palette.length]; }
+
+function retColor(pct) {
+  if (pct >= 80) return 'rgba(26,122,122,0.9)';
+  if (pct >= 60) return 'rgba(45,139,139,0.75)';
+  if (pct >= 40) return 'rgba(45,139,139,0.45)';
+  if (pct >= 20) return 'rgba(192,112,64,0.55)';
+  if (pct >= 10) return 'rgba(196,64,64,0.5)';
+  return 'rgba(196,64,64,0.3)';
+}
+
+// ============ KPIs ============
+function renderKPIs() {
+  const latestLTV = getLatestLTVPerCohort();
+  const totalSubs = latestLTV.reduce((s,r) => s + r.size, 0);
+  const totalRevenue = latestLTV.reduce((s,r) => s + r.revenue, 0);
+  const m1Retentions = retentionData.filter(r => r.offset === 1);
+  const avgM1 = m1Retentions.reduce((s,r) => s + r.pct, 0) / m1Retentions.length;
+  const m3Retentions = retentionData.filter(r => r.offset === 3);
+  const avgM3 = m3Retentions.reduce((s,r) => s + r.pct, 0) / m3Retentions.length;
+  const avgLTV = latestLTV.reduce((s,r) => s + r.ltv, 0) / latestLTV.length;
+  const totalCancelled = latestLTV.reduce((s,r) => s + r.cancelled, 0);
+
+  const kpis = [
+    { label: 'Total Subscriptions', value: totalSubs.toLocaleString('en-US'), sub: '18 cohorts (Oct/24 - Mar/26)' },
+    { label: 'Total Revenue', value: '$ ' + (totalRevenue/1000).toFixed(0) + 'k', sub: '$ ' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits:2}) },
+    { label: 'Avg M1 Retention', value: avgM1.toFixed(1) + '%', sub: avgM1 > 70 ? '<span class="green">Healthy</span>' : '<span class="yellow">Needs Attention</span>' },
+    { label: 'Avg M3 Retention', value: avgM3.toFixed(1) + '%', sub: m3Retentions.length + ' cohorts with M3 data' },
+    { label: 'Avg LTV / Subscriber', value: '$ ' + avgLTV.toFixed(0), sub: 'Cumulative revenue / cohort size' },
+    { label: 'Cancellations', value: totalCancelled.toLocaleString('en-US'), sub: (totalCancelled/totalSubs*100).toFixed(1) + '% of total' }
+  ];
+
+  document.getElementById('kpiRow').innerHTML = kpis.map(k => `
+    <div class="kpi">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      <div class="sub">${k.sub}</div>
+    </div>
+  `).join('');
+}
+
+// ============ TABS ============
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ============ HEATMAP ============
+function renderHeatmap() {
+  const cohortData = {};
+  retentionData.forEach(r => {
+    if (!cohortData[r.cohort]) cohortData[r.cohort] = {};
+    cohortData[r.cohort][r.offset] = r;
+  });
+  const maxOffset = Math.max(...retentionData.map(r => r.offset));
+
+  let html = '<table class="heatmap"><thead><tr><th>Cohort</th><th>Size</th>';
+  for (let i = 0; i <= maxOffset; i++) html += `<th>M${i}</th>`;
+  html += '</tr></thead><tbody>';
+
+  cohorts.forEach(c => {
+    const d = cohortData[c];
+    const size = d[0]?.total || 0;
+    html += `<tr><td class="cohort-label">${c}</td><td class="size">${size}</td>`;
+    for (let i = 0; i <= maxOffset; i++) {
+      if (d[i]) {
+        html += `<td style="background:${retColor(d[i].pct)};color:#fff;font-weight:600;border-radius:4px;text-shadow:0 1px 2px rgba(0,0,0,0.3);">${d[i].pct}%</td>`;
+      } else {
+        html += '<td></td>';
+      }
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('heatmapContainer').innerHTML = html;
+}
+
+// ============ RETENTION CURVES ============
+let retentionChart;
+function renderRetentionCurves(selectedCohorts) {
+  const ctx = document.getElementById('retentionChart').getContext('2d');
+  if (retentionChart) retentionChart.destroy();
+
+  const datasets = selectedCohorts.map((c, i) => {
+    const rows = retentionData.filter(r => r.cohort === c).sort((a,b) => a.offset - b.offset);
+    return {
+      label: c,
+      data: rows.map(r => ({ x: r.offset, y: r.pct })),
+      borderColor: getColor(i),
+      backgroundColor: 'transparent',
+      tension: 0.3,
+      pointRadius: 3,
+      borderWidth: 2
+    };
+  });
+
+  retentionChart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Months since signup', color: '#5a7a8a' }, ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' } },
+        y: { min: 0, max: 100, title: { display: true, text: 'Retention %', color: '#5a7a8a' }, ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' } }
+      },
+      plugins: { legend: { labels: { color: '#1a2332', usePointStyle: true, pointStyle: 'circle' } } }
+    }
+  });
+}
+
+// ============ AVG RETENTION BY MONTH ============
+function renderAvgRetention() {
+  const byOffset = {};
+  retentionData.forEach(r => {
+    if (!byOffset[r.offset]) byOffset[r.offset] = [];
+    byOffset[r.offset].push(r.pct);
+  });
+  const offsets = Object.keys(byOffset).map(Number).sort((a,b) => a - b);
+  const avgs = offsets.map(o => byOffset[o].reduce((s,v) => s+v, 0) / byOffset[o].length);
+  const counts = offsets.map(o => byOffset[o].length);
+
+  new Chart(document.getElementById('avgRetentionChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: offsets.map(o => 'M' + o),
+      datasets: [{
+        label: 'Avg Retention %',
+        data: avgs.map(v => +v.toFixed(1)),
+        backgroundColor: offsets.map((o, i) => {
+          const v = avgs[i];
+          return v >= 60 ? 'rgba(34,197,94,0.7)' : v >= 30 ? 'rgba(234,179,8,0.7)' : 'rgba(239,68,68,0.7)';
+        }),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a' }, grid: { display: false } },
+        y: { min: 0, max: 100, ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { afterLabel: (ctx) => `Cohorts: ${counts[ctx.dataIndex]}` } }
+      }
+    }
+  });
+}
+
+// ============ COHORT SIZE ============
+function renderCohortSize() {
+  const sizes = cohorts.map(c => {
+    const r = retentionData.find(r => r.cohort === c && r.offset === 0);
+    return r ? r.total : 0;
+  });
+
+  new Chart(document.getElementById('cohortSizeChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: cohorts,
+      datasets: [{
+        label: 'New Subscriptions',
+        data: sizes,
+        backgroundColor: 'rgba(26,122,122,0.85)',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a' }, grid: { display: false } },
+        y: { ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// ============ LTV CHART ============
+function renderLTVChart() {
+  const latestLTV = getLatestLTVPerCohort();
+  new Chart(document.getElementById('ltvChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: latestLTV.map(r => r.cohort),
+      datasets: [{
+        label: 'LTV / Subscriber ($)',
+        data: latestLTV.map(r => r.ltv),
+        backgroundColor: latestLTV.map(r => r.ltv >= 300 ? 'rgba(34,197,94,0.7)' : r.ltv >= 200 ? 'rgba(234,179,8,0.7)' : 'rgba(26,122,122,0.85)'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a', maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#5a7a8a', callback: v => '$' + v }, grid: { color: '#d0dfe0' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// ============ ARPU CHART ============
+function renderARPUChart() {
+  const latestLTV = getLatestLTVPerCohort();
+  new Chart(document.getElementById('arpuChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: latestLTV.map(r => r.cohort),
+      datasets: [{
+        label: 'Monthly ARPU ($)',
+        data: latestLTV.map(r => r.arpu),
+        borderColor: '#1a7a7a',
+        backgroundColor: 'rgba(168,218,220,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: '#1a7a7a'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a', maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#5a7a8a', callback: v => '$' + v }, grid: { color: '#d0dfe0' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// ============ REVENUE CHART ============
+function renderRevenueChart() {
+  const latestLTV = getLatestLTVPerCohort();
+  new Chart(document.getElementById('revenueChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: latestLTV.map(r => r.cohort),
+      datasets: [{
+        label: 'Total Revenue ($)',
+        data: latestLTV.map(r => r.revenue),
+        backgroundColor: 'rgba(34,197,94,0.7)',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a', maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#5a7a8a', callback: v => '$' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#d0dfe0' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// ============ CHURN CHART ============
+function renderChurnChart() {
+  // Get the latest row per cohort from ltvData
+  const latestLTV = getLatestLTVPerCohort();
+
+  // Get the latest month offset for each cohort to compute cancellations
+  const maxOffsetPerCohort = {};
+  retentionData.forEach(r => {
+    if (!maxOffsetPerCohort[r.cohort] || r.offset > maxOffsetPerCohort[r.cohort].offset) {
+      maxOffsetPerCohort[r.cohort] = r;
+    }
+  });
+
+  const cancellations = latestLTV.map(ltvRow => {
+    const latestRet = maxOffsetPerCohort[ltvRow.cohort];
+    if (!latestRet) return 0;
+    return ltvRow.size - latestRet.active;
+  });
+
+  const activeRates = latestLTV.map(ltvRow => {
+    const latestRet = maxOffsetPerCohort[ltvRow.cohort];
+    if (!latestRet) return 0;
+    return (latestRet.active / ltvRow.size * 100).toFixed(1);
+  });
+
+  new Chart(document.getElementById('churnChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: latestLTV.map(r => r.cohort),
+      datasets: [
+        {
+          label: 'Cancellations',
+          data: cancellations,
+          backgroundColor: 'rgba(239,68,68,0.7)',
+          borderRadius: 4,
+          yAxisID: 'y'
+        },
+        {
+          label: '% Currently Active',
+          data: activeRates,
+          type: 'line',
+          borderColor: '#22c55e',
+          pointBackgroundColor: '#22c55e',
+          pointRadius: 3,
+          borderWidth: 2,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a', maxRotation: 45 }, grid: { display: false } },
+        y: { position: 'left', ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' }, title: { display: true, text: 'Cancellations', color: '#5a7a8a' } },
+        y1: { position: 'right', min: 0, max: 100, ticks: { color: '#22c55e' }, grid: { display: false }, title: { display: true, text: '% Active', color: '#22c55e' } }
+      },
+      plugins: { legend: { labels: { color: '#1a2332', usePointStyle: true } } }
+    }
+  });
+}
+
+// ============ LTV HEATMAP ============
+function renderLTVTable() {
+  // Group ltvData by cohort
+  const cohortMap = {};
+  ltvData.forEach(r => {
+    if (!cohortMap[r.cohort]) cohortMap[r.cohort] = [];
+    cohortMap[r.cohort].push(r);
+  });
+
+  // Get unique cohorts sorted
+  const ltvCohorts = Object.keys(cohortMap).sort();
+
+  // Find max month_offset across all data
+  const maxOffset = Math.max(...ltvData.map(r => r.offset));
+  const maxCol = Math.min(maxOffset, 24);
+
+  // Build header
+  let html = '<table class="heatmap"><thead><tr><th>Cohort</th><th>Size</th>';
+  for (let m = 0; m <= maxCol; m++) {
+    html += '<th>M' + m + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  // For each cohort, render a row with real LTV data
+  ltvCohorts.forEach(c => {
+    const rows = cohortMap[c].sort((a, b) => a.offset - b.offset);
+    const cohortSize = rows[0].size;
+
+    html += '<tr><td class="cohort-label">' + c + '</td><td class="size">' + cohortSize + '</td>';
+
+    for (let m = 0; m <= maxCol; m++) {
+      const row = rows.find(r => r.offset === m);
+      if (row) {
+        const ltv = row.ltv; // This is cumRevenue / cohort_size = real cumulative LTV
+        html += '<td style="background:' + ltvCellColor(ltv) + ';font-weight:500;font-size:11px;" title="M' + m + ': $' + ltv.toFixed(2) + ' LTV | $' + row.revenue.toFixed(2) + ' revenue | ' + row.activeSubs + ' active">' + '$' + ltv.toFixed(0) + '</td>';
+      } else {
+        html += '<td></td>';
+      }
+    }
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('ltvTableContainer').innerHTML = html;
+}
+
+// Color function for LTV heatmap cells
+function ltvCellColor(ltv) {
+  if (ltv >= 500) return 'rgba(22,135,74,0.75)';
+  if (ltv >= 350) return 'rgba(22,135,74,0.55)';
+  if (ltv >= 250) return 'rgba(26,122,122,0.55)';
+  if (ltv >= 150) return 'rgba(45,139,139,0.4)';
+  if (ltv >= 80) return 'rgba(45,139,139,0.25)';
+  if (ltv >= 30) return 'rgba(45,139,139,0.12)';
+  return 'rgba(45,139,139,0.05)';
+}
+
+// ============ PRODUCT RETENTION TABLE ============
+function renderProductTable(monthOffset) {
+  const filtered = productData.filter(r => r.offset === monthOffset);
+  filtered.sort((a,b) => b.total - a.total);
+  const top = filtered.slice(0, 15);
+
+  let html = '<table class="product-table"><thead><tr><th>Product</th><th>Cohort Total</th><th>Active</th><th>Retention</th><th></th></tr></thead><tbody>';
+  top.forEach(r => {
+    const barColor = r.pct >= 60 ? '#22c55e' : r.pct >= 30 ? '#eab308' : '#ef4444';
+    html += `<tr>
+      <td style="font-weight:500;">${r.product}</td>
+      <td>${r.total}</td>
+      <td>${r.active}</td>
+      <td style="font-weight:600;color:${barColor}">${r.pct}%</td>
+      <td style="width:150px;"><div class="bar"><div class="bar-fill" style="width:${r.pct}%;background:${barColor};"></div></div></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('productTableContainer').innerHTML = html;
+}
+
+// ============ PRODUCT RETENTION CURVES ============
+let productChart;
+function renderProductCurves(selectedProducts) {
+  const ctx = document.getElementById('productRetentionChart').getContext('2d');
+  if (productChart) productChart.destroy();
+
+  const datasets = selectedProducts.map((p, i) => {
+    const rows = productData.filter(r => r.product === p).sort((a,b) => a.offset - b.offset);
+    return {
+      label: p,
+      data: rows.map(r => ({ x: r.offset, y: r.pct })),
+      borderColor: getColor(i),
+      backgroundColor: 'transparent',
+      tension: 0.3,
+      pointRadius: 3,
+      borderWidth: 2
+    };
+  });
+
+  productChart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Months since signup', color: '#5a7a8a' }, ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' } },
+        y: { min: 0, max: 100, title: { display: true, text: 'Retention %', color: '#5a7a8a' }, ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' } }
+      },
+      plugins: { legend: { labels: { color: '#1a2332', usePointStyle: true, pointStyle: 'circle', font: { size: 11 } } } }
+    }
+  });
+}
+
+// ============ NEW: REVENUE BY PRODUCT CHARTS ============
+function renderRevByProduct() {
+  // Top 12 by revenue for charts
+  const top12 = revenueData.filter(r => r.revenue > 1000).slice(0, 12);
+
+  // Revenue bar chart
+  new Chart(document.getElementById('revByProductChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: top12.map(r => r.product.length > 20 ? r.product.substring(0,18) + '...' : r.product),
+      datasets: [{
+        label: 'Total Revenue ($)',
+        data: top12.map(r => r.revenue),
+        backgroundColor: top12.map((r, i) => getColor(i)),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a', callback: v => '$' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#d0dfe0' } },
+        y: { ticks: { color: '#1a2332', font: { size: 11 } }, grid: { display: false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // Revenue per subscriber bar chart
+  const sorted = [...revenueData].filter(r => r.subs >= 10).sort((a,b) => b.rps - a.rps).slice(0, 12);
+  new Chart(document.getElementById('revPerSubChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(r => r.product.length > 20 ? r.product.substring(0,18) + '...' : r.product),
+      datasets: [{
+        label: 'Revenue/Subscriber ($)',
+        data: sorted.map(r => r.rps),
+        backgroundColor: sorted.map(r => r.rps >= 300 ? 'rgba(34,197,94,0.7)' : r.rps >= 200 ? 'rgba(234,179,8,0.7)' : 'rgba(26,122,122,0.85)'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a', callback: v => '$' + v }, grid: { color: '#d0dfe0' } },
+        y: { ticks: { color: '#1a2332', font: { size: 11 } }, grid: { display: false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // Revenue table
+  const totalRevenue = revenueData.reduce((s,r) => s + r.revenue, 0);
+  let html = '<table class="product-table"><thead><tr><th>Product</th><th>Subscriptions</th><th>Orders</th><th>Revenue</th><th>Avg Order</th><th>Rev/Sub</th><th>Share</th><th></th></tr></thead><tbody>';
+  revenueData.forEach(r => {
+    const share = (r.revenue / totalRevenue * 100);
+    const barColor = share >= 10 ? '#1a7a7a' : share >= 3 ? '#2d8b8b' : '#6dbfbf';
+    html += `<tr>
+      <td style="font-weight:500;">${r.product}</td>
+      <td>${r.subs.toLocaleString('en-US')}</td>
+      <td>${r.orders.toLocaleString('en-US')}</td>
+      <td style="font-weight:600;">$ ${r.revenue.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+      <td>$ ${r.aov.toFixed(2)}</td>
+      <td style="font-weight:600;color:${r.rps >= 300 ? '#22c55e' : r.rps >= 200 ? '#eab308' : '#1a2332'}">$ ${r.rps.toFixed(2)}</td>
+      <td>${share.toFixed(1)}%</td>
+      <td style="width:100px;"><div class="bar"><div class="bar-fill" style="width:${Math.min(share * 2, 100)}%;background:${barColor};"></div></div></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('revenueTableContainer').innerHTML = html;
+
+  // Revenue share doughnut
+  const topForPie = revenueData.slice(0, 8);
+  const othersRev = revenueData.slice(8).reduce((s,r) => s + r.revenue, 0);
+  const pieLabels = [...topForPie.map(r => r.product), 'Others'];
+  const pieData = [...topForPie.map(r => r.revenue), othersRev];
+
+  new Chart(document.getElementById('revenueShareChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: pieLabels,
+      datasets: [{
+        data: pieData,
+        backgroundColor: [...topForPie.map((r,i) => getColor(i)), '#64748b'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#1a2332', font: { size: 11 }, padding: 12 } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: $${(ctx.parsed/1000).toFixed(1)}k (${(ctx.parsed/totalRevenue*100).toFixed(1)}%)` } }
+      }
+    }
+  });
+}
+
+// ============ NEW: CHURN BY PRODUCT CHARTS ============
+let churnByProductChart;
+function renderChurnByProduct(selectedProducts) {
+  const ctx = document.getElementById('churnByProductChart').getContext('2d');
+  if (churnByProductChart) churnByProductChart.destroy();
+
+  const datasets = selectedProducts.map((p, i) => {
+    const rows = productData.filter(r => r.product === p).sort((a,b) => a.offset - b.offset);
+    return {
+      label: p,
+      data: rows.map(r => ({ x: r.offset, y: +(100 - r.pct).toFixed(1) })),
+      borderColor: getColor(i),
+      backgroundColor: 'transparent',
+      tension: 0.3,
+      pointRadius: 3,
+      borderWidth: 2
+    };
+  });
+
+  churnByProductChart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { type: 'linear', title: { display: true, text: 'Months since signup', color: '#5a7a8a' }, ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' } },
+        y: { min: 0, max: 100, title: { display: true, text: 'Churn %', color: '#5a7a8a' }, ticks: { color: '#5a7a8a' }, grid: { color: '#d0dfe0' } }
+      },
+      plugins: { legend: { labels: { color: '#1a2332', usePointStyle: true, pointStyle: 'circle', font: { size: 11 } } } }
+    }
+  });
+}
+
+function renderChurnM3() {
+  const m3Data = productData.filter(r => r.offset === 3 && r.total >= 30).map(r => ({
+    product: r.product,
+    churn: +(100 - r.pct).toFixed(1),
+    total: r.total
+  })).sort((a,b) => b.churn - a.churn);
+
+  new Chart(document.getElementById('churnM3Chart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: m3Data.map(r => r.product.length > 18 ? r.product.substring(0,16) + '...' : r.product),
+      datasets: [{
+        label: 'M3 Churn %',
+        data: m3Data.map(r => r.churn),
+        backgroundColor: m3Data.map(r => r.churn >= 70 ? 'rgba(239,68,68,0.7)' : r.churn >= 50 ? 'rgba(249,115,22,0.7)' : 'rgba(34,197,94,0.7)'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { min: 0, max: 100, ticks: { color: '#5a7a8a', callback: v => v + '%' }, grid: { color: '#d0dfe0' } },
+        y: { ticks: { color: '#1a2332', font: { size: 11 } }, grid: { display: false } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { afterLabel: (ctx) => `n = ${m3Data[ctx.dataIndex].total}` } }
+      }
+    }
+  });
+}
+
+function renderChurnSpeed() {
+  // Calculate average monthly churn rate for first 6 months
+  const prodNames = [...new Set(productData.filter(r => r.total >= 50).map(r => r.product))];
+  const speedData = prodNames.map(p => {
+    const rows = productData.filter(r => r.product === p && r.offset <= 6 && r.offset > 0).sort((a,b) => a.offset - b.offset);
+    if (rows.length === 0) return null;
+    const m0 = productData.find(r => r.product === p && r.offset === 0);
+    if (!m0) return null;
+    const lastRow = rows[rows.length - 1];
+    const totalChurn = 100 - lastRow.pct;
+    const avgMonthlyChurn = totalChurn / lastRow.offset;
+    return { product: p, speed: +avgMonthlyChurn.toFixed(1), months: lastRow.offset, total: m0.total };
+  }).filter(Boolean).sort((a,b) => b.speed - a.speed);
+
+  new Chart(document.getElementById('churnSpeedChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: speedData.map(r => r.product.length > 18 ? r.product.substring(0,16) + '...' : r.product),
+      datasets: [{
+        label: 'Avg Monthly Churn %',
+        data: speedData.map(r => r.speed),
+        backgroundColor: speedData.map(r => r.speed >= 15 ? 'rgba(239,68,68,0.7)' : r.speed >= 10 ? 'rgba(249,115,22,0.7)' : 'rgba(34,197,94,0.7)'),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#5a7a8a', callback: v => v + '%/mo' }, grid: { color: '#d0dfe0' } },
+        y: { ticks: { color: '#1a2332', font: { size: 11 } }, grid: { display: false } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { afterLabel: (ctx) => `n = ${speedData[ctx.dataIndex].total} | ${speedData[ctx.dataIndex].months} months tracked` } }
+      }
+    }
+  });
+}
+
+// ============ INSIGHTS ============
+function renderInsights() {
+  const m1Avg = retentionData.filter(r => r.offset === 1).reduce((s,r) => s + r.pct, 0) / retentionData.filter(r => r.offset === 1).length;
+  const m3Avg = retentionData.filter(r => r.offset === 3).reduce((s,r) => s + r.pct, 0) / retentionData.filter(r => r.offset === 3).length;
+  const m6Data = retentionData.filter(r => r.offset === 6);
+  const m6Avg = m6Data.length > 0 ? m6Data.reduce((s,r) => s + r.pct, 0) / m6Data.length : 0;
+
+  const m3 = retentionData.filter(r => r.offset === 3).sort((a,b) => b.pct - a.pct);
+  const bestM3 = m3[0];
+  const worstM3 = m3[m3.length - 1];
+
+  const prodM3 = productData.filter(r => r.offset === 3 && r.total >= 50).sort((a,b) => b.pct - a.pct);
+
+  // Revenue insights
+  const totalProdRevenue = revenueData.reduce((s,r) => s + r.revenue, 0);
+  const topRevProduct = revenueData[0];
+  const topRevShare = (topRevProduct.revenue / totalProdRevenue * 100).toFixed(1);
+
+  const insights = [
+    {
+      title: '📊 Retention Overview',
+      text: `Average M1 retention is <b>${m1Avg.toFixed(1)}%</b>, dropping to <b>${m3Avg.toFixed(1)}%</b> at M3 and <b>${m6Avg.toFixed(1)}%</b> at M6. The steepest drop occurs between M0 and M2, indicating the first 60 days are critical for engagement.`
+    },
+    {
+      title: '🏆 Best Performing Cohort',
+      text: bestM3 ? `The <b>${bestM3.cohort}</b> cohort shows the best M3 retention at <b>${bestM3.pct}%</b> (${bestM3.active} of ${bestM3.total} subscribers still active).` : 'Insufficient data.'
+    },
+    {
+      title: '⚠️ Cohort Needing Attention',
+      text: worstM3 ? `The <b>${worstM3.cohort}</b> cohort has the lowest M3 retention at <b>${worstM3.pct}%</b>. It may be worth investigating what changed during that period.` : 'Insufficient data.'
+    },
+    {
+      title: '🥇 Top Products by Retention (M3, cohort >= 50)',
+      text: prodM3.length > 0 ? prodM3.slice(0, 5).map((r, i) => `<b>${i+1}. ${r.product}</b>: ${r.pct}% (n=${r.total})`).join('<br>') : 'Insufficient data.'
+    },
+    {
+      title: '💰 Revenue Analysis',
+      text: `Total product revenue is <b>$${(totalProdRevenue/1000).toFixed(0)}k</b>. <b>${topRevProduct.product}</b> dominates with <b>${topRevShare}%</b> of total revenue ($${(topRevProduct.revenue/1000).toFixed(0)}k). The highest revenue per subscriber belongs to products with smaller cohorts but high AOV like Liposomal Quercetin ($547/sub) and Liposomal CoQ10 ($416/sub).`
+    },
+    {
+      title: '💡 LTV Analysis',
+      text: `Older cohorts (Oct-Dec/2024) show LTV above $300/subscriber, while recent cohorts are around $140-200. This is expected as newer cohorts haven't had time to accumulate revenue. The average order value (ARPU) ranges from $77 to $138, with more recent cohorts showing higher values.`
+    },
+    {
+      title: '📈 Growth Trend',
+      text: `New subscriptions have grown substantially: from 255 in Oct/2024 to 1,168 in Feb/2026, an increase of <b>${((1168/255 - 1)*100).toFixed(0)}%</b>. Nov/2025 (1,039) and Feb/2026 (1,168) were peak acquisition months.`
+    },
+    {
+      title: '🔑 Recommendations',
+      text: `<b>1.</b> Focus on retention in the first 60 days — onboarding campaigns and check-ins.<br>
+<b>2.</b> Investigate what NAD+ Advanced Longevity Formula does differently — 57.6% retention at M3 is exceptional for its size.<br>
+<b>3.</b> Products like "Calm Shots" and "Lean Muscle Formula" show steep M1-M2 drops — consider bundling or trials.<br>
+<b>4.</b> Monitor large recent cohorts (Nov/25, Feb/26) closely to ensure growth doesn't sacrifice quality.<br>
+<b>5.</b> Longevity Shots generate 58% of all revenue — diversifying revenue across other products would reduce risk.`
+    }
+  ];
+
+  document.getElementById('insightsContent').innerHTML = insights.map(i => `
+    <div style="margin-bottom:20px;">
+      <h4 style="font-size:15px;margin-bottom:8px;">${i.title}</h4>
+      <p style="color:#a1a1aa;line-height:1.6;font-size:14px;">${i.text}</p>
+    </div>
+  `).join('');
+}
+
+// ============ INIT ============
+function init() {
+  renderKPIs();
+  renderHeatmap();
+
+  // Retention cohort selector
+  const retSelect = document.getElementById('retentionCohortSelect');
+  cohorts.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    if (['2024-10','2024-12','2025-03','2025-06','2025-09','2025-12'].includes(c)) opt.selected = true;
+    retSelect.appendChild(opt);
+  });
+  retSelect.addEventListener('change', () => {
+    const selected = Array.from(retSelect.selectedOptions).map(o => o.value);
+    renderRetentionCurves(selected);
+  });
+  renderRetentionCurves(['2024-10','2024-12','2025-03','2025-06','2025-09','2025-12']);
+
+  renderAvgRetention();
+  renderCohortSize();
+  renderLTVChart();
+  renderARPUChart();
+  renderRevenueChart();
+  renderChurnChart();
+  renderLTVTable();
+
+  // Product month selector
+  const prodMonthSelect = document.getElementById('productMonthSelect');
+  const prodOffsets = [...new Set(productData.map(r => r.offset))].sort((a,b) => a - b);
+  prodOffsets.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = 'M' + o;
+    if (o === 3) opt.selected = true;
+    prodMonthSelect.appendChild(opt);
+  });
+  prodMonthSelect.addEventListener('change', () => renderProductTable(+prodMonthSelect.value));
+  renderProductTable(3);
+
+  // Product selector for retention curves
+  const prodSelect = document.getElementById('productSelect');
+  const topProducts = products.filter(p => {
+    const m0 = productData.find(r => r.product === p && r.offset === 0);
+    return m0 && m0.total >= 100;
+  }).sort((a,b) => {
+    const aM0 = productData.find(r => r.product === a && r.offset === 0)?.total || 0;
+    const bM0 = productData.find(r => r.product === b && r.offset === 0)?.total || 0;
+    return bM0 - aM0;
+  });
+  topProducts.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    if (['Longevity Shots','Hydro Burn','NMN cell renew tonic','Glow Shots','Lean Muscle Formula'].includes(p)) opt.selected = true;
+    prodSelect.appendChild(opt);
+  });
+  prodSelect.addEventListener('change', () => {
+    const selected = Array.from(prodSelect.selectedOptions).map(o => o.value);
+    renderProductCurves(selected);
+  });
+  renderProductCurves(['Longevity Shots','Hydro Burn','NMN cell renew tonic','Glow Shots','Lean Muscle Formula']);
+
+  // Revenue by product
+  renderRevByProduct();
+
+  // Churn by product
+  const churnProdSelect = document.getElementById('churnProductSelect');
+  topProducts.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    if (['Longevity Shots','Hydro Burn','Glow Shots','Lean Muscle Formula','Calm Shots'].includes(p)) opt.selected = true;
+    churnProdSelect.appendChild(opt);
+  });
+  churnProdSelect.addEventListener('change', () => {
+    const selected = Array.from(churnProdSelect.selectedOptions).map(o => o.value);
+    renderChurnByProduct(selected);
+  });
+  renderChurnByProduct(['Longevity Shots','Hydro Burn','Glow Shots','Lean Muscle Formula','Calm Shots']);
+  renderChurnM3();
+  renderChurnSpeed();
+
+  renderInsights();
+}
+
+init();
+</script>
+</body>
+</html>
